@@ -96,6 +96,8 @@ body::after{
   box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
   user-select:none;
 }
+/* 工具栏的层叠上下文要压过纸面，导出下拉菜单才能露出来 */
+.window > .toolbar{z-index:6}
 .tbtn{
   height:28px;min-width:30px;padding:0 7px;
   display:inline-flex;align-items:center;justify-content:center;gap:4px;
@@ -277,8 +279,10 @@ body::after{
           <span style="font-size:10px;margin-left:1px">▾</span>
         </button>
         <div class="menu" id="exportMenu">
-          <button data-exp="md">Markdown（.md）</button>
-          <button data-exp="html">网页（.html）</button>
+          <button data-exp="md">下载 Markdown（.md）</button>
+          <button data-exp="html">下载 网页（.html）</button>
+          <button data-exp="copymd">复制 Markdown</button>
+          <button data-exp="copyhtml">复制 HTML</button>
         </div>
       </div>
     </div>
@@ -925,7 +929,11 @@ toolbar.addEventListener('click', function(e){
   const menuBtn = e.target.closest('#exportMenu button');
   if (menuBtn){
     exportMenu.classList.remove('show');
-    menuBtn.dataset.exp === 'md' ? exportMd() : exportHtml();
+    const k = menuBtn.dataset.exp;
+    if (k === 'md') exportMd();
+    else if (k === 'html') exportHtml();
+    else if (k === 'copymd') copyText(html2md(editor), 'Markdown 已复制到剪贴板');
+    else copyText(editor.innerHTML, 'HTML 已复制到剪贴板');
     return;
   }
   if (e.target.closest('#btnNew')){ newDoc(); return; }
@@ -1188,6 +1196,23 @@ function download(name, content, type){
   a.click();
   a.remove();
   setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+function copyText(text, msg){
+  const done = function(){ flashSave(msg); };
+  const fallback = function(){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch(e) {}
+    ta.remove();
+    flashSave(ok ? msg : '复制失败，请手动选择文本复制');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else fallback();
 }
 function safeName(){
   return (docName || '未命名.md').replace(/[\\/:*?"<>|]/g, '_');
